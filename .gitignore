@@ -1,0 +1,8 @@
+# environment vars
+.env
+
+# nodejs
+node_modules
+
+# ide
+.vscode
