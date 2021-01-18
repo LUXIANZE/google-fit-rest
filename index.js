@@ -40,6 +40,7 @@ app.get("/", (req, res) => {
     <p>Server Healthy: ${health}</p>
     <p>Up Time: ${upTime}s</p>
     <p>Cpu Usage: ${cpuUsage.system}</p>
+    <p>Visit <a href="">http://localhost:5000/starter?id={validpatientid}</a> for automated health data collection</p>
   </html>`;
   return res.send(response_html);
 });
@@ -95,7 +96,7 @@ app.get("/steps", async (req, res) => {
   const tokens = await oauth2Client.getToken(code);
   // console.log('tokens :>> ', tokens);
 
-  let stepArray = [];
+  let healthDataArray = [];
 
   try {
     const result = await axios({
@@ -112,6 +113,11 @@ app.get("/steps", async (req, res) => {
             dataSourceId:
               "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps",
           },
+          {
+            dataTypeName: "com.google.calories.expended",
+            dataSourceId:
+              "derived:com.google.calories.expended:com.google.android.gms:merge_calories_expended",
+          },
         ],
         bucketByTime: { durationMillis: 86400000 },
         startTimeMillis: Date.now() - 7 * 86400000,
@@ -121,14 +127,14 @@ app.get("/steps", async (req, res) => {
 
     // console.log('result :>> ', result);
 
-    stepArray = result.data.bucket;
+    healthDataArray = result.data.bucket;
   } catch (error) {
     console.log("error :>> ", error);
   }
 
   try {
-    // console.log('stepArray :>> ', stepArray);
-    for (const dataset of stepArray) {
+    console.log("healthDataArray :>> ", healthDataArray);
+    for (const dataset of healthDataArray) {
       // console.log('dataset :>> ', dataset);
       for (const point of dataset.dataset) {
         // console.log('point :>> ', point);
@@ -136,7 +142,7 @@ app.get("/steps", async (req, res) => {
           console.log("useId :>> ", cookie);
           console.log(
             "date :>> ",
-            new Date(value.endTimeNanos / 1000000).toDateString()
+            new Date(value.endTimeNanos / 1000000).toUTCString()
           );
           console.log("value :>> ", value.value);
         }
@@ -146,13 +152,22 @@ app.get("/steps", async (req, res) => {
     console.log("error :>> ", error);
   }
 
-  return res.send("Successfully Logged In");
+  return res.send(
+    `Successfully Logged In, your current data is ${JSON.stringify(
+      healthDataArray
+    )}`
+  );
 });
 
 app.listen(port, () =>
   console.log(`Server running at http://localhost:${port}`)
 );
 
+/**
+ * Function to turn cookie extracted from request header into usable object
+ * @example cookieParser(req.headers.cookie)
+ * @param {String} cookie
+ */
 const cookieParser = (cookie) => {
   let parsedCookie = {};
   const pairs = cookie.split(";");
