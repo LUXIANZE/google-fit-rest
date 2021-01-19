@@ -18,9 +18,6 @@ app.use(bodyParser.json());
 let db = [];
 
 /**
- *
- * Useful reference: https://developers.google.com/identity/protocols/oauth2/web-server#offline
- *
  * sign up Logic:
  * 1. user goto /starter by url provided by clinicians [DONE]
  * 2. user request: check user id and record of [access_token, refresh_token, expiry]
@@ -77,11 +74,12 @@ app.get("/starter", async (req, res) => {
 
       let updated_patient_token = db[patient_index];
 
-      updated_patient_token.tokens.access_token = result.data.access_token;
-      updated_patient_token.tokens.expiry_date =
-        Date.now() + result.data.expires_in;
-      updated_patient_token.tokens.scope = result.data.scope;
-      updated_patient_token.tokens.token_type = result.data.token_type;
+      updated_patient_token.tokens.tokens.access_token =
+        result.data.access_token;
+      updated_patient_token.tokens.tokens.expiry_date =
+        Date.now() + result.data.expires_in * 1000;
+      updated_patient_token.tokens.tokens.scope = result.data.scope;
+      updated_patient_token.tokens.tokens.token_type = result.data.token_type;
 
       console.log("Not-updated Database Token :>> ", tokens.tokens);
 
@@ -137,43 +135,11 @@ app.get("/starter", async (req, res) => {
         url: `https://fitness.googleapis.com/fitness/v1/users/me/sessions`,
       });
 
-      // const sources = await axios({
-      //   method: "GET",
-      //   headers: {
-      //     authorization: "Bearer " + tokens.tokens.access_token,
-      //   },
-      //   "Content-Type": "application/json",
-      //   url: `https://fitness.googleapis.com/fitness/v1/users/me/dataSources`,
-      // });
-
-      // console.log("sources :>> ", JSON.stringify(sources.data));
-
       healthDataArray = result.data.bucket;
       allSessions = sessions.data.session;
     } catch (error) {
       console.log("error :>> ", error);
     }
-
-    //   try {
-    //     // console.log("healthDataArray :>> ", healthDataArray);
-    //     // console.log("allSessions :>> ", allSessions);
-    //     for (const dataset of healthDataArray) {
-    //       // console.log('dataset :>> ', dataset);
-    //       for (const point of dataset.dataset) {
-    //         // console.log('point :>> ', point);
-    //         for (const value of point.point) {
-    //           console.log("useId :>> ", user.id);
-    //           console.log(
-    //             "date :>> ",
-    //             new Date(value.endTimeNanos / 1000000).toUTCString()
-    //           );
-    //           console.log("value :>> ", value.value);
-    //         }
-    //       }
-    //     }
-    //   } catch (error) {
-    //     console.log("error :>> ", error);
-    //   }
 
     const aggregated_data = {
       non_session: healthDataArray,
@@ -181,11 +147,11 @@ app.get("/starter", async (req, res) => {
     };
     return res.json(aggregated_data);
   } else {
-    res.cookie("id", patientID).redirect("http://localhost:5000/getURLTing");
+    res.cookie("id", patientID).redirect("http://localhost:5000/auth");
   }
 });
 
-app.get("/getURLTing", (req, res) => {
+app.get("/auth", (req, res) => {
   const cookie = cookieParser(req.headers.cookie).id;
 
   const oauth2Client = new google.auth.OAuth2(
@@ -229,7 +195,7 @@ app.get("/steps", async (req, res) => {
   /**
    * If user not exist, create new record
    */
-  if (db.find((item) => item.id === cookie) !== null) {
+  if (db.find((item) => item.id === cookie) === undefined) {
     const new_user = {
       id: cookie,
       tokens: tokens,
@@ -237,96 +203,7 @@ app.get("/steps", async (req, res) => {
     db.push(new_user);
   }
 
-  let healthDataArray = [];
-  let allSessions = [];
-
-  try {
-    const result = await axios({
-      method: "POST",
-      headers: {
-        authorization: "Bearer " + tokens.tokens.access_token,
-      },
-      "Content-Type": "application/json",
-      url: `https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate`,
-      data: {
-        aggregateBy: [
-          {
-            dataTypeName: "com.google.step_count.delta",
-            dataSourceId:
-              "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps",
-          },
-          {
-            dataTypeName: "com.google.calories.expended",
-            dataSourceId:
-              "derived:com.google.calories.expended:com.google.android.gms:merge_calories_expended",
-          },
-          {
-            dataTypeName: "com.google.sleep.segment",
-            dataSourceId:
-              "derived:com.google.sleep.segment:com.google.android.gms:merged",
-          },
-          {
-            dataTypeName: "com.google.heart_minutes",
-            dataSourceId:
-              "derived:com.google.heart_minutes:com.google.android.gms:merge_heart_minutes",
-          },
-        ],
-        bucketByTime: { durationMillis: 86400000 },
-        startTimeMillis: Date.now() - 30 * 86400000,
-        endTimeMillis: Date.now(),
-      },
-    });
-
-    const sessions = await axios({
-      method: "GET",
-      headers: {
-        authorization: "Bearer " + tokens.tokens.access_token,
-      },
-      "Content-Type": "application/json",
-      url: `https://fitness.googleapis.com/fitness/v1/users/me/sessions`,
-    });
-
-    const sources = await axios({
-      method: "GET",
-      headers: {
-        authorization: "Bearer " + tokens.tokens.access_token,
-      },
-      "Content-Type": "application/json",
-      url: `https://fitness.googleapis.com/fitness/v1/users/me/dataSources`,
-    });
-
-    healthDataArray = result.data.bucket;
-    allSessions = sessions.data.session;
-  } catch (error) {
-    console.log("error :>> ", error);
-  }
-
-  //   try {
-  //     // console.log("healthDataArray :>> ", healthDataArray);
-  //     // console.log("allSessions :>> ", allSessions);
-  //     for (const dataset of healthDataArray) {
-  //       // console.log('dataset :>> ', dataset);
-  //       for (const point of dataset.dataset) {
-  //         // console.log('point :>> ', point);
-  //         for (const value of point.point) {
-  //           console.log("useId :>> ", cookie);
-  //           console.log(
-  //             "date :>> ",
-  //             new Date(value.endTimeNanos / 1000000).toUTCString()
-  //           );
-  //           console.log("value :>> ", value.value);
-  //         }
-  //       }
-  //     }
-  //   } catch (error) {
-  //     console.log("error :>> ", error);
-  //   }
-
-  const aggregated_data = {
-    non_session: healthDataArray,
-    session: allSessions,
-  };
-  return res.json(aggregated_data);
+  return res.redirect(`http://localhost:5000/starter?id=${cookie}`);
 });
 
 app.listen(port, () =>

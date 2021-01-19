@@ -6,5 +6,8 @@ node_modules
 
 # ide
 .vscode
+
+# personal use
 googlefit_result.jsonc
 googlefit_datasource.jsonc
+docs
