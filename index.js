@@ -236,7 +236,7 @@ app.get("/steps", async (req, res) => {
           {
             dataTypeName: "com.google.heart_minutes",
             dataSourceId:
-              "derived:com.google.heart_minutes:com.google.android.gms:from_steps<-estimated_steps",
+              "derived:com.google.heart_minutes:com.google.android.gms:merge_heart_minutes",
           },
         ],
         bucketByTime: { durationMillis: 86400000 },
@@ -256,16 +256,16 @@ app.get("/steps", async (req, res) => {
 
     console.log("sessions :>> ", sessions);
 
-    // const sources = await axios({
-    //   method: "GET",
-    //   headers: {
-    //     authorization: "Bearer " + tokens.tokens.access_token,
-    //   },
-    //   "Content-Type": "application/json",
-    //   url: `https://fitness.googleapis.com/fitness/v1/users/me/dataSources`,
-    // });
+    const sources = await axios({
+      method: "GET",
+      headers: {
+        authorization: "Bearer " + tokens.tokens.access_token,
+      },
+      "Content-Type": "application/json",
+      url: `https://fitness.googleapis.com/fitness/v1/users/me/dataSources`,
+    });
 
-    // console.log("sources :>> ", JSON.stringify(sources.data));
+    console.log("sources :>> ", JSON.stringify(sources.data));
 
     healthDataArray = result.data.bucket;
     allSessions = sessions.data.session;
