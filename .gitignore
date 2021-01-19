@@ -7,3 +7,4 @@ node_modules
 # ide
 .vscode
 googlefit_result.jsonc
+googlefit_datasource.jsonc

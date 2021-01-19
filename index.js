@@ -60,7 +60,7 @@ app.get("/getURLTing", (req, res) => {
   );
 
   const scopes = [
-    "https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.sleep.read profile email openid",
+    "https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.sleep.read  profile email openid",
   ];
 
   const url = oauth2Client.generateAuthUrl({
@@ -118,6 +118,16 @@ app.get("/steps", async (req, res) => {
             dataSourceId:
               "derived:com.google.calories.expended:com.google.android.gms:merge_calories_expended",
           },
+          {
+            dataTypeName: "com.google.sleep.segment",
+            dataSourceId:
+              "derived:com.google.sleep.segment:com.google.android.gms:merged",
+          },
+          {
+            dataTypeName: "com.google.heart_minutes",
+            dataSourceId:
+              "derived:com.google.heart_minutes:com.google.android.gms:from_steps<-estimated_steps",
+          },
         ],
         bucketByTime: { durationMillis: 86400000 },
         startTimeMillis: Date.now() - 7 * 86400000,
@@ -125,7 +135,16 @@ app.get("/steps", async (req, res) => {
       },
     });
 
-    // console.log('result :>> ', result);
+    // const sources = await axios({
+    //   method: "GET",
+    //   headers: {
+    //     authorization: "Bearer " + tokens.tokens.access_token,
+    //   },
+    //   "Content-Type": "application/json",
+    //   url: `https://fitness.googleapis.com/fitness/v1/users/me/dataSources`,
+    // });
+
+    // console.log("sources :>> ", JSON.stringify(sources.data));
 
     healthDataArray = result.data.bucket;
   } catch (error) {
@@ -133,7 +152,7 @@ app.get("/steps", async (req, res) => {
   }
 
   try {
-    console.log("healthDataArray :>> ", healthDataArray);
+    // console.log("healthDataArray :>> ", healthDataArray);
     for (const dataset of healthDataArray) {
       // console.log('dataset :>> ', dataset);
       for (const point of dataset.dataset) {
