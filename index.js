@@ -22,10 +22,10 @@ let db = [];
  * Useful reference: https://developers.google.com/identity/protocols/oauth2/web-server#offline
  *
  * sign up Logic:
- * 1. user goto /starter by url provided by clinicians
+ * 1. user goto /starter by url provided by clinicians [DONE]
  * 2. user request: check user id and record of [access_token, refresh_token, expiry]
  *  - if not exist:
- *      - log him in and store tokens
+ *      - log him in and store tokens [DONE]
  *
  * cron job logic:
  * 1. loop through db
@@ -55,7 +55,42 @@ app.get("/starter", async (req, res) => {
    */
   if (db.find((item) => item.id === patientID)) {
     const user = db.find((item) => item.id === patientID);
-    const tokens = user.tokens;
+    let tokens = user.tokens;
+
+    console.log("isTokenExpired :>> ", isTokenExpired(tokens.tokens));
+
+    if (isTokenExpired(tokens.tokens)) {
+      const result = await axios({
+        method: "POST",
+        url: "https://oauth2.googleapis.com/token",
+        "Content-Type": "application/x-www-form-urlencoded",
+        data: {
+          client_id: process.env.CLIENT_ID,
+          client_secret: process.env.CLIENT_SECRET,
+          refresh_token: tokens.tokens.refresh_token,
+          grant_type: "refresh_token",
+        },
+      });
+
+      console.log("Updated Token :>> ", result.data);
+      const patient_index = db.findIndex((item) => item.id === patientID);
+
+      let updated_patient_token = db[patient_index];
+
+      updated_patient_token.tokens.access_token = result.data.access_token;
+      updated_patient_token.tokens.expiry_date =
+        Date.now() + result.data.expires_in;
+      updated_patient_token.tokens.scope = result.data.scope;
+      updated_patient_token.tokens.token_type = result.data.token_type;
+
+      console.log("Not-updated Database Token :>> ", tokens.tokens);
+
+      db[patient_index] = updated_patient_token;
+      tokens = db[patient_index];
+
+      console.log("Updated Database Token :>> ", tokens.tokens);
+    }
+
     try {
       const result = await axios({
         method: "POST",
@@ -102,8 +137,6 @@ app.get("/starter", async (req, res) => {
         url: `https://fitness.googleapis.com/fitness/v1/users/me/sessions`,
       });
 
-      console.log("sessions :>> ", sessions);
-
       // const sources = await axios({
       //   method: "GET",
       //   headers: {
@@ -121,26 +154,26 @@ app.get("/starter", async (req, res) => {
       console.log("error :>> ", error);
     }
 
-    try {
-      // console.log("healthDataArray :>> ", healthDataArray);
-      // console.log("allSessions :>> ", allSessions);
-      for (const dataset of healthDataArray) {
-        // console.log('dataset :>> ', dataset);
-        for (const point of dataset.dataset) {
-          // console.log('point :>> ', point);
-          for (const value of point.point) {
-            console.log("useId :>> ", user.id);
-            console.log(
-              "date :>> ",
-              new Date(value.endTimeNanos / 1000000).toUTCString()
-            );
-            console.log("value :>> ", value.value);
-          }
-        }
-      }
-    } catch (error) {
-      console.log("error :>> ", error);
-    }
+    //   try {
+    //     // console.log("healthDataArray :>> ", healthDataArray);
+    //     // console.log("allSessions :>> ", allSessions);
+    //     for (const dataset of healthDataArray) {
+    //       // console.log('dataset :>> ', dataset);
+    //       for (const point of dataset.dataset) {
+    //         // console.log('point :>> ', point);
+    //         for (const value of point.point) {
+    //           console.log("useId :>> ", user.id);
+    //           console.log(
+    //             "date :>> ",
+    //             new Date(value.endTimeNanos / 1000000).toUTCString()
+    //           );
+    //           console.log("value :>> ", value.value);
+    //         }
+    //       }
+    //     }
+    //   } catch (error) {
+    //     console.log("error :>> ", error);
+    //   }
 
     const aggregated_data = {
       non_session: healthDataArray,
@@ -192,7 +225,6 @@ app.get("/steps", async (req, res) => {
   );
 
   const tokens = await oauth2Client.getToken(code);
-  // console.log('tokens :>> ', tokens);
 
   /**
    * If user not exist, create new record
@@ -254,8 +286,6 @@ app.get("/steps", async (req, res) => {
       url: `https://fitness.googleapis.com/fitness/v1/users/me/sessions`,
     });
 
-    console.log("sessions :>> ", sessions);
-
     const sources = await axios({
       method: "GET",
       headers: {
@@ -265,34 +295,32 @@ app.get("/steps", async (req, res) => {
       url: `https://fitness.googleapis.com/fitness/v1/users/me/dataSources`,
     });
 
-    console.log("sources :>> ", JSON.stringify(sources.data));
-
     healthDataArray = result.data.bucket;
     allSessions = sessions.data.session;
   } catch (error) {
     console.log("error :>> ", error);
   }
 
-  try {
-    // console.log("healthDataArray :>> ", healthDataArray);
-    // console.log("allSessions :>> ", allSessions);
-    for (const dataset of healthDataArray) {
-      // console.log('dataset :>> ', dataset);
-      for (const point of dataset.dataset) {
-        // console.log('point :>> ', point);
-        for (const value of point.point) {
-          console.log("useId :>> ", cookie);
-          console.log(
-            "date :>> ",
-            new Date(value.endTimeNanos / 1000000).toUTCString()
-          );
-          console.log("value :>> ", value.value);
-        }
-      }
-    }
-  } catch (error) {
-    console.log("error :>> ", error);
-  }
+  //   try {
+  //     // console.log("healthDataArray :>> ", healthDataArray);
+  //     // console.log("allSessions :>> ", allSessions);
+  //     for (const dataset of healthDataArray) {
+  //       // console.log('dataset :>> ', dataset);
+  //       for (const point of dataset.dataset) {
+  //         // console.log('point :>> ', point);
+  //         for (const value of point.point) {
+  //           console.log("useId :>> ", cookie);
+  //           console.log(
+  //             "date :>> ",
+  //             new Date(value.endTimeNanos / 1000000).toUTCString()
+  //           );
+  //           console.log("value :>> ", value.value);
+  //         }
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.log("error :>> ", error);
+  //   }
 
   const aggregated_data = {
     non_session: healthDataArray,
@@ -319,4 +347,13 @@ const cookieParser = (cookie) => {
   });
 
   return parsedCookie;
+};
+
+/**
+ * Validate the expiry date of OAuth2 token
+ * @param {Object} tokens
+ */
+const isTokenExpired = (tokens) => {
+  const now = Date.now();
+  return tokens.expiry_date < now;
 };
