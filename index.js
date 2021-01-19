@@ -15,6 +15,8 @@ app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
+let db = [];
+
 /**
  *
  * Useful reference: https://developers.google.com/identity/protocols/oauth2/web-server#offline
@@ -45,9 +47,109 @@ app.get("/", (req, res) => {
   return res.send(response_html);
 });
 
-app.get("/starter", (req, res) => {
+app.get("/starter", async (req, res) => {
   const patientID = req.query.id;
-  res.cookie("id", patientID).redirect("http://localhost:5000/getURLTing");
+
+  /**
+   * If user record exists. Proceed without reuqesting authorisation again
+   */
+  if (db.find((item) => item.id === patientID)) {
+    const user = db.find((item) => item.id === patientID);
+    const tokens = user.tokens;
+    try {
+      const result = await axios({
+        method: "POST",
+        headers: {
+          authorization: "Bearer " + tokens.tokens.access_token,
+        },
+        "Content-Type": "application/json",
+        url: `https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate`,
+        data: {
+          aggregateBy: [
+            {
+              dataTypeName: "com.google.step_count.delta",
+              dataSourceId:
+                "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps",
+            },
+            {
+              dataTypeName: "com.google.calories.expended",
+              dataSourceId:
+                "derived:com.google.calories.expended:com.google.android.gms:merge_calories_expended",
+            },
+            {
+              dataTypeName: "com.google.sleep.segment",
+              dataSourceId:
+                "derived:com.google.sleep.segment:com.google.android.gms:merged",
+            },
+            {
+              dataTypeName: "com.google.heart_minutes",
+              dataSourceId:
+                "derived:com.google.heart_minutes:com.google.android.gms:from_steps<-estimated_steps",
+            },
+          ],
+          bucketByTime: { durationMillis: 86400000 },
+          startTimeMillis: Date.now() - 30 * 86400000,
+          endTimeMillis: Date.now(),
+        },
+      });
+
+      const sessions = await axios({
+        method: "GET",
+        headers: {
+          authorization: "Bearer " + tokens.tokens.access_token,
+        },
+        "Content-Type": "application/json",
+        url: `https://fitness.googleapis.com/fitness/v1/users/me/sessions`,
+      });
+
+      console.log("sessions :>> ", sessions);
+
+      // const sources = await axios({
+      //   method: "GET",
+      //   headers: {
+      //     authorization: "Bearer " + tokens.tokens.access_token,
+      //   },
+      //   "Content-Type": "application/json",
+      //   url: `https://fitness.googleapis.com/fitness/v1/users/me/dataSources`,
+      // });
+
+      // console.log("sources :>> ", JSON.stringify(sources.data));
+
+      healthDataArray = result.data.bucket;
+      allSessions = sessions.data.session;
+    } catch (error) {
+      console.log("error :>> ", error);
+    }
+
+    try {
+      // console.log("healthDataArray :>> ", healthDataArray);
+      // console.log("allSessions :>> ", allSessions);
+      for (const dataset of healthDataArray) {
+        // console.log('dataset :>> ', dataset);
+        for (const point of dataset.dataset) {
+          // console.log('point :>> ', point);
+          for (const value of point.point) {
+            console.log("useId :>> ", user.id);
+            console.log(
+              "date :>> ",
+              new Date(value.endTimeNanos / 1000000).toUTCString()
+            );
+            console.log("value :>> ", value.value);
+          }
+        }
+      }
+    } catch (error) {
+      console.log("error :>> ", error);
+    }
+
+    const aggregated_data = {
+      non_session: healthDataArray,
+      session: allSessions,
+    };
+    return res.json(aggregated_data);
+  } else {
+    res.cookie("id", patientID).redirect("http://localhost:5000/getURLTing");
+  }
 });
 
 app.get("/getURLTing", (req, res) => {
@@ -74,8 +176,6 @@ app.get("/getURLTing", (req, res) => {
 
   request(url, (err, response, body) => {
     err && console.log("error :>> ", err);
-    // console.log('statusCode :>> ', response &  response.statusCode);
-    // res.send({url})
     res.cookie("id", cookie).redirect(url);
   });
 });
@@ -85,8 +185,6 @@ app.get("/steps", async (req, res) => {
   const queryURL = new urlParse(req.url);
   const code = queryParse.parse(queryURL.query).code;
 
-  // console.log('code :>> ', code);
-
   const oauth2Client = new google.auth.OAuth2(
     process.env.CLIENT_ID,
     process.env.CLIENT_SECRET,
@@ -95,6 +193,17 @@ app.get("/steps", async (req, res) => {
 
   const tokens = await oauth2Client.getToken(code);
   // console.log('tokens :>> ', tokens);
+
+  /**
+   * If user not exist, create new record
+   */
+  if (db.find((item) => item.id === cookie) !== null) {
+    const new_user = {
+      id: cookie,
+      tokens: tokens,
+    };
+    db.push(new_user);
+  }
 
   let healthDataArray = [];
   let allSessions = [];
