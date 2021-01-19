@@ -97,6 +97,7 @@ app.get("/steps", async (req, res) => {
   // console.log('tokens :>> ', tokens);
 
   let healthDataArray = [];
+  let allSessions = [];
 
   try {
     const result = await axios({
@@ -130,10 +131,21 @@ app.get("/steps", async (req, res) => {
           },
         ],
         bucketByTime: { durationMillis: 86400000 },
-        startTimeMillis: Date.now() - 7 * 86400000,
+        startTimeMillis: Date.now() - 30 * 86400000,
         endTimeMillis: Date.now(),
       },
     });
+
+    const sessions = await axios({
+      method: "GET",
+      headers: {
+        authorization: "Bearer " + tokens.tokens.access_token,
+      },
+      "Content-Type": "application/json",
+      url: `https://fitness.googleapis.com/fitness/v1/users/me/sessions`,
+    });
+
+    console.log("sessions :>> ", sessions);
 
     // const sources = await axios({
     //   method: "GET",
@@ -147,12 +159,14 @@ app.get("/steps", async (req, res) => {
     // console.log("sources :>> ", JSON.stringify(sources.data));
 
     healthDataArray = result.data.bucket;
+    allSessions = sessions.data.session;
   } catch (error) {
     console.log("error :>> ", error);
   }
 
   try {
     // console.log("healthDataArray :>> ", healthDataArray);
+    // console.log("allSessions :>> ", allSessions);
     for (const dataset of healthDataArray) {
       // console.log('dataset :>> ', dataset);
       for (const point of dataset.dataset) {
@@ -171,11 +185,11 @@ app.get("/steps", async (req, res) => {
     console.log("error :>> ", error);
   }
 
-  return res.send(
-    `Successfully Logged In, your current data is ${JSON.stringify(
-      healthDataArray
-    )}`
-  );
+  const aggregated_data = {
+    non_session: healthDataArray,
+    session: allSessions,
+  };
+  return res.json(aggregated_data);
 });
 
 app.listen(port, () =>
