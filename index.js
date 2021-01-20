@@ -54,6 +54,9 @@ app.get("/starter", async (req, res) => {
     const user = db.find((item) => item.id === patientID);
     let tokens = user.tokens;
 
+    let healthDataArray = [];
+    let allSessions = [];
+
     console.log("isTokenExpired :>> ", isTokenExpired(tokens.tokens));
 
     if (isTokenExpired(tokens.tokens)) {
@@ -110,11 +113,6 @@ app.get("/starter", async (req, res) => {
                 "derived:com.google.calories.expended:com.google.android.gms:merge_calories_expended",
             },
             {
-              dataTypeName: "com.google.sleep.segment",
-              dataSourceId:
-                "derived:com.google.sleep.segment:com.google.android.gms:merged",
-            },
-            {
               dataTypeName: "com.google.heart_minutes",
               dataSourceId:
                 "derived:com.google.heart_minutes:com.google.android.gms:from_steps<-estimated_steps",
@@ -138,7 +136,7 @@ app.get("/starter", async (req, res) => {
       healthDataArray = result.data.bucket;
       allSessions = sessions.data.session;
     } catch (error) {
-      console.log("error :>> ", error);
+      console.log("error :>> ", error.response);
     }
 
     const aggregated_data = {
@@ -161,7 +159,7 @@ app.get("/auth", (req, res) => {
   );
 
   const scopes = [
-    "https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.sleep.read  profile email openid",
+    "https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.sleep.read profile email openid",
   ];
 
   const url = oauth2Client.generateAuthUrl({
