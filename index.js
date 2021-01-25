@@ -7,6 +7,7 @@ const request = require("request");
 const urlParse = require("url-parse");
 const queryParse = require("query-string");
 const axios = require("axios");
+var cron = require("node-cron");
 
 require("dotenv").config();
 const port = process.env.PORT || 3000;
@@ -16,6 +17,115 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 let db = [];
+
+/**
+ * Cron Job to update database every 30 minutes
+ * - loop through db
+ * - check token
+ * - make request
+ * - put result
+ */
+cron.schedule("*/30 * * * *", async () => {
+  // check db size
+  if (db.length > 0) {
+    // loop through each patient
+    for (const patient of db) {
+      let tokens = patient.tokens;
+      if (isTokenExpired(tokens.tokens)) {
+        const result = await axios({
+          method: "POST",
+          url: "https://oauth2.googleapis.com/token",
+          "Content-Type": "application/x-www-form-urlencoded",
+          data: {
+            client_id: process.env.CLIENT_ID,
+            client_secret: process.env.CLIENT_SECRET,
+            refresh_token: tokens.tokens.refresh_token,
+            grant_type: "refresh_token",
+          },
+        });
+
+        console.log("Updated Token :>> ", result.data);
+        const patient_index = db.findIndex((item) => item.id === patientID);
+
+        let updated_patient_token = db[patient_index];
+
+        updated_patient_token.tokens.tokens.access_token =
+          result.data.access_token;
+        updated_patient_token.tokens.tokens.expiry_date =
+          Date.now() + result.data.expires_in * 1000;
+        updated_patient_token.tokens.tokens.scope = result.data.scope;
+        updated_patient_token.tokens.tokens.token_type = result.data.token_type;
+
+        console.log("Not-updated Database Token :>> ", tokens.tokens);
+
+        db[patient_index] = updated_patient_token;
+        tokens = db[patient_index];
+
+        console.log("Updated Database Token :>> ", tokens.tokens);
+      }
+
+      try {
+        const result = await axios({
+          method: "POST",
+          headers: {
+            authorization: "Bearer " + tokens.tokens.access_token,
+          },
+          "Content-Type": "application/json",
+          url: `https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate`,
+          data: {
+            aggregateBy: [
+              {
+                dataTypeName: "com.google.step_count.delta",
+                dataSourceId:
+                  "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps",
+              },
+              {
+                dataTypeName: "com.google.calories.expended",
+                dataSourceId:
+                  "derived:com.google.calories.expended:com.google.android.gms:merge_calories_expended",
+              },
+              {
+                dataTypeName: "com.google.heart_minutes",
+                dataSourceId:
+                  "derived:com.google.heart_minutes:com.google.android.gms:from_steps<-estimated_steps",
+              },
+            ],
+            bucketByTime: { durationMillis: 86400000 },
+            startTimeMillis: Date.now() - 30 * 86400000,
+            endTimeMillis: Date.now(),
+          },
+        });
+
+        const sessions = await axios({
+          method: "GET",
+          headers: {
+            authorization: "Bearer " + tokens.tokens.access_token,
+          },
+          "Content-Type": "application/json",
+          url: `https://fitness.googleapis.com/fitness/v1/users/me/sessions`,
+        });
+
+        healthDataArray = result.data.bucket;
+        allSessions = sessions.data.session;
+      } catch (error) {
+        console.log("error :>> ", error.response);
+      }
+
+      const aggregated_data = {
+        non_session: healthDataArray,
+        session: allSessions,
+      };
+
+      // send data to server
+      const res = await axios.put(
+        "http://localhost:1000/patient",
+        aggregated_data
+      );
+    }
+  } else {
+    console.log("No patient");
+  }
+});
 
 /**
  * sign up Logic:
