@@ -16,6 +16,7 @@ app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
+// TODO: #2 @LUXIANZE setup db connection
 let db = [];
 
 /**
@@ -122,6 +123,7 @@ cron.schedule("*/30 * * * *", async () => {
       };
 
       // send data to server
+      // TODO:@LUXIANZE #1 replace with Osama's URL
       const res = await axios.put(
         "http://localhost:1000/patient",
         aggregated_data
