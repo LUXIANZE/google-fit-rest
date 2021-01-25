@@ -30,7 +30,10 @@ cron.schedule("*/30 * * * *", async () => {
   if (db.length > 0) {
     // loop through each patient
     for (const patient of db) {
+      // extract tokens
       let tokens = patient.tokens;
+
+      // check token validity, update if it is expired
       if (isTokenExpired(tokens.tokens)) {
         const result = await axios({
           method: "POST",
@@ -64,6 +67,7 @@ cron.schedule("*/30 * * * *", async () => {
         console.log("Updated Database Token :>> ", tokens.tokens);
       }
 
+      // attempt to get health data
       try {
         const result = await axios({
           method: "POST",
@@ -111,6 +115,7 @@ cron.schedule("*/30 * * * *", async () => {
         console.log("error :>> ", error.response);
       }
 
+      // aggregate the health data
       const aggregated_data = {
         non_session: healthDataArray,
         session: allSessions,
